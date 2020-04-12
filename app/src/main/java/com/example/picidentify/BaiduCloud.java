@@ -8,7 +8,7 @@ import java.util.List;
 
 public class BaiduCloud {
 
-    static Double checkFace(String face1, String face2) {
+    static FaceResult checkFace(String face1, String face2) {
         // 请求url
         String url = "https://aip.baidubce.com/rest/2.0/face/v3/match";
         try {
@@ -26,17 +26,12 @@ public class BaiduCloud {
 
             FaceResult faceResult = GsonUtils.fromJson(result, FaceResult.class);
 
-            if (faceResult.error_code != 0) {
-                Log.e("EEE", faceResult.error_code + faceResult.error_msg);
-                return -1.0;
-            } else {
-                return faceResult.score;
-            }
+            return faceResult;
 
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return -1.0;
+        return null;
     }
 
 }

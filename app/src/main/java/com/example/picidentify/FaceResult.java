@@ -2,7 +2,7 @@ package com.example.picidentify;
 
 public class FaceResult {
 
-    Integer error_code;
+    Integer error_code = 0;
 
     String error_msg;
 
@@ -12,5 +12,9 @@ public class FaceResult {
 
     Integer cached;
 
-    Double score;
+    public static class Result {
+        public Double score;
+    }
+
+    Result result = new Result();
 }

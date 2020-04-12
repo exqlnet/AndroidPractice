@@ -6,6 +6,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -14,6 +15,7 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Looper;
 import android.os.StrictMode;
 import android.provider.MediaStore;
 import android.util.Base64;
@@ -25,6 +27,7 @@ import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -33,18 +36,15 @@ public class MainActivity extends AppCompatActivity {
     private static final int CAMERA = 1002;
     private static final int INTERNET = 1003;
 
-    private ImageView imageView;
+    private Bitmap pic_1;
 
-    private String pic_1;
-
-    private String pic_2;
+    private Bitmap pic_2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Button btn = (Button) findViewById(R.id.button);
-        imageView = (ImageView) findViewById(R.id.imageView);
         requestStoragePermission();
         requestCameraPermission();
         requestNetworkPermission();
@@ -78,18 +78,10 @@ public class MainActivity extends AppCompatActivity {
                     int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
                     String picturePath = cursor.getString(columnIndex);  //获取照片路径
                     cursor.close();
-                    Bitmap bitmap = BitmapFactory.decodeFile(picturePath);
-                    imageView.setImageBitmap(bitmap);
+                    pic_1 = BitmapFactory.decodeFile(picturePath);
 
-                    // 图片转base64
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-                    byte[]  bytes = baos.toByteArray();
 
-                    byte[] b64 = Base64.encode(bytes, Base64.DEFAULT);
-                    pic_1 = new String(b64);
-
-                    Log.e("TAG", "成功获取图片: " + pic_1.substring(0, 10));
+                    Log.e("TAG", "成功获取图片");
 
                     // 摄像头拍照
                     Intent intent = new Intent("android.media.action.IMAGE_CAPTURE");
@@ -100,25 +92,32 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case CAMERA:
                 if (resultCode == RESULT_OK) {
-                    Bundle bm = data.getExtras();
-                    Bitmap bitmap = (Bitmap) bm.get("data");
+                    final Bundle bm = data.getExtras();
 
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    runOnUiThread(new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            pic_2 = (Bitmap) bm.get("data");
 
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-                    byte[]  bytes = baos.toByteArray();
+                            // 图片1转base64
+                            final String b64_pic_1 = bitmapToBase64(pic_1);
+                            final String b64_pic_2 = bitmapToBase64(pic_2);
 
-                    byte[] b64 = Base64.encode(bytes, Base64.DEFAULT);
-                    pic_2 = new String(b64);
+                            Log.e("E", "b64转换成功，" + b64_pic_1.length() + "," + b64_pic_2.length());
 
-                    imageView.setImageBitmap(bitmap);
 
-                    Double result = BaiduCloud.checkFace(pic_1, pic_2);
-                    if (result == -1.0) {
-                        Toast.makeText(getApplicationContext(), "人脸匹配失败", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(getApplicationContext(), "匹配成功！匹配率" + result, Toast.LENGTH_SHORT).show();
-                    }
+                            final Context context = getApplicationContext();
+                            FaceResult result = BaiduCloud.checkFace(b64_pic_1, b64_pic_2);
+                            if (result == null) {
+                                Toast.makeText(context, "人脸匹配失败", Toast.LENGTH_SHORT).show();
+                            } else if (result.error_code != 0) {
+                                Toast.makeText(context, "匹配失败：" + result.error_msg, Toast.LENGTH_LONG).show();
+                            } else {
+                                Toast.makeText(context, "匹配成功！匹配率" + result.result.score, Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    }));
+
 
                 } else {
                     Toast.makeText(getApplicationContext(), "尝试拍照失败", Toast.LENGTH_SHORT).show();
@@ -196,5 +195,49 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /**
+     * bitmap转为base64
+     * @param bitmap
+     * @return
+     */
+    public static String bitmapToBase64(Bitmap bitmap) {
+
+        String result = null;
+        ByteArrayOutputStream baos = null;
+        try {
+            if (bitmap != null) {
+                baos = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 20, baos);
+
+                baos.flush();
+                baos.close();
+
+                byte[] bitmapBytes = baos.toByteArray();
+                result = Base64.encodeToString(bitmapBytes, Base64.DEFAULT);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (baos != null) {
+                    baos.flush();
+                    baos.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return result;
+    }
+
+    /**
+     * base64转为bitmap
+     * @param base64Data
+     * @return
+     */
+    public static Bitmap base64ToBitmap(String base64Data) {
+        byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+    }
 
 }
